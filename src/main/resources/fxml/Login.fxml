@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Font?>
+
+<StackPane xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lifespring.hospital.controller.LoginController">
+   <children>
+      <!-- Background Image -->
+      <ImageView fitHeight="800.0" fitWidth="1200.0" pickOnBounds="true" preserveRatio="false">
+         <image>
+            <Image url="@../images/hospital-bg.jpg" />
+         </image>
+      </ImageView>
+      
+      <!-- Main Content -->
+      <VBox alignment="CENTER" spacing="30.0" styleClass="main-container">
+         <children>
+            <!-- Header Section -->
+            <VBox alignment="CENTER" spacing="10.0">
+               <children>
+                  <HBox alignment="CENTER" spacing="15.0">
+                     <children>
+                        <ImageView fitHeight="50.0" fitWidth="50.0" pickOnBounds="true" preserveRatio="true">
+                           <image>
+                              <Image url="@../images/hospital-icon.png" />
+                           </image>
+                        </ImageView>
+                        <Label styleClass="title" text="LifeSpring Hospital" />
+                     </children>
+                  </HBox>
+                  <Label styleClass="subtitle" text="Hospital Management System" />
+                  <Label styleClass="welcome-text" text="Welcome to our comprehensive healthcare solution" />
+               </children>
+            </VBox>
+            
+            <!-- Login Form -->
+            <VBox alignment="CENTER" maxWidth="400.0" spacing="20.0" styleClass="login-form">
+               <children>
+                  <VBox alignment="CENTER" spacing="10.0">
+                     <children>
+                        <Label styleClass="form-title" text="Access Your Account" />
+                        <Label styleClass="form-subtitle" text="Sign in to continue or register as a new patient" />
+                     </children>
+                  </VBox>
+                  
+                  <!-- Tab Selection -->
+                  <HBox alignment="CENTER" spacing="0.0" styleClass="tab-container">
+                     <children>
+                        <Button fx:id="signInTab" onAction="#selectSignInTab" styleClass="tab-button, active-tab" text="Sign In" />
+                        <Button fx:id="patientSignupTab" onAction="#selectPatientSignupTab" styleClass="tab-button" text="Patient Signup" />
+                     </children>
+                  </HBox>
+                  
+                  <!-- Form Fields -->
+                  <VBox spacing="15.0">
+                     <children>
+                        <VBox spacing="5.0">
+                           <children>
+                              <Label styleClass="field-label" text="Username" />
+                              <TextField fx:id="usernameField" promptText="Enter your username" styleClass="form-field" />
+                           </children>
+                        </VBox>
+                        
+                        <VBox spacing="5.0">
+                           <children>
+                              <Label styleClass="field-label" text="Password" />
+                              <PasswordField fx:id="passwordField" promptText="Enter your password" styleClass="form-field" />
+                           </children>
+                        </VBox>
+                        
+                        <!-- Role Selection -->
+                        <VBox spacing="5.0">
+                           <children>
+                              <Label styleClass="field-label" text="User Role" />
+                              <ComboBox fx:id="roleComboBox" promptText="Select your role" styleClass="form-field" />
+                           </children>
+                        </VBox>
+                     </children>
+                  </VBox>
+                  
+                  <!-- Default Credentials -->
+                  <VBox spacing="5.0" styleClass="credentials-box">
+                     <children>
+                        <Label styleClass="credentials-title" text="Default Credentials:" />
+                        <Label styleClass="credentials-text" text="Admin: admin / admin" />
+                        <Label styleClass="credentials-text" text="Doctor: dr.smith / doctor123" />
+                        <Label styleClass="credentials-text" text="Patient: john_doe / patient123" />
+                     </children>
+                  </VBox>
+                  
+                  <!-- Remember Me and Forgot Password -->
+                  <HBox alignment="CENTER_LEFT" spacing="20.0">
+                     <children>
+                        <CheckBox fx:id="rememberMeBox" styleClass="checkbox" text="Remember me" />
+                        <Region HBox.hgrow="ALWAYS" />
+                        <Hyperlink fx:id="forgotPasswordLink" onAction="#forgotPassword" styleClass="forgot-link" text="Forgot password?" />
+                     </children>
+                  </HBox>
+                  
+                  <!-- Sign In Button -->
+                  <Button fx:id="signInButton" onAction="#handleSignIn" styleClass="signin-button" text="Sign In" />
+               </children>
+               <padding>
+                  <Insets bottom="30.0" left="30.0" right="30.0" top="30.0" />
+               </padding>
+            </VBox>
+            
+            <!-- Footer -->
+            <Label styleClass="footer-text" text="© 2025 LifeSpring Hospital Management System. All rights reserved." />
+         </children>
+      </VBox>
+   </children>
+</StackPane>
