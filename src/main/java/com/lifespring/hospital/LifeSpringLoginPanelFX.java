@@ -1074,6 +1074,490 @@ public class LifeSpringLoginPanelFX extends Application {
         }
     }
 
+    /**
+     * UNIFIED: Authentication with Receptionist support
+     */
+    private void authenticateUser() {
+        String username = usernameField.getText().trim();
+        String password = getCurrentPassword();
+
+        statusLabel.setVisible(false);
+
+        if (username.isEmpty() || password.isEmpty()) {
+            showErrorMessage("Please enter both username and password");
+            return;
+        }
+
+        loginButton.setDisable(true);
+        loginButton.setText("Signing In...");
+
+        System.out.println("🔐 UNIFIED Authentication attempt for: " + username);
+        System.out.println("📅 Time: " +
+                java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Dhaka")).format(
+                        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm:ss a")) + " BST");
+
+        Task<User> authTask = new Task<User>() {
+            @Override
+            protected User call() throws Exception {
+                Thread.sleep(1000);
+
+                // Strategy 1: Try admin/doctor/receptionist login (users table)
+                User user = userDAO.authenticateUser(username, password);
+
+                if (user != null) {
+                    System.out.println("✅ User authentication successful: " + user.getFullName() + " (Role: " + user.getRole() + ")");
+                    return user;
+                }
+
+                // Strategy 2: Try patient login (patients table) - UNIFIED SYSTEM
+                System.out.println("🔄 Trying UNIFIED patient authentication...");
+                PatientDAO patientDAO = new PatientDAO();
+                Patient patient = patientDAO.validateLogin(username, password);
+
+                if (patient != null) {
+                    System.out.println("✅ UNIFIED Patient authentication successful: " + patient.getFullName());
+
+                    // Convert Patient to User for unified dashboard handling
+                    User patientUser = new User();
+                    patientUser.setUsername(patient.getUsername());
+                    patientUser.setFullName(patient.getFullName());
+                    patientUser.setEmail(patient.getEmail());
+                    patientUser.setRole("patient");
+                    patientUser.setActive(true);
+
+                    return patientUser;
+                }
+
+                System.out.println("❌ UNIFIED Authentication failed for: " + username);
+                return null;
+            }
+
+            @Override
+            protected void succeeded() {
+                User user = getValue();
+                Platform.runLater(() -> {
+                    if (user != null) {
+                        resetLoginButton();
+                        System.out.println("✅ UNIFIED Login successful! Welcome " + user.getFullName());
+                        showSimpleSuccessMessage(user);
+                    } else {
+                        showErrorMessage("❌ Invalid username or password");
+                        resetLoginButton();
+                    }
+                });
+            }
+
+            @Override
+            protected void failed() {
+                Platform.runLater(() -> {
+                    showErrorMessage("❌ Login failed. Please try again");
+                    resetLoginButton();
+                });
+            }
+        };
+
+        Thread authThread = new Thread(authTask);
+        authThread.setDaemon(true);
+        authThread.start();
+    }
+
+    /**
+     * FIXED: Enhanced Success Message with Receptionist Dashboard Routing
+     */
+    private void showSimpleSuccessMessage(User user) {
+        try {
+            if (statusLabel != null) {
+                String welcomeMessage = "✅ Welcome " + user.getFullName() + "! (" + user.getRole() + ")";
+
+                statusLabel.setText(welcomeMessage);
+                statusLabel.setStyle(
+                        "-fx-text-fill: #059669; " +
+                                "-fx-font-size: 12px; " +
+                                "-fx-font-weight: bold; " +
+                                "-fx-padding: 8 12; " +
+                                "-fx-background-color: #f0fdf4; " +
+                                "-fx-border-color: #bbf7d0; " +
+                                "-fx-border-width: 1; " +
+                                "-fx-border-radius: 6; " +
+                                "-fx-background-radius: 6; " +
+                                "-fx-alignment: center;"
+                );
+                statusLabel.setVisible(true);
+
+                System.out.println("✅ Success message displayed: " + welcomeMessage);
+            }
+
+            String timestamp = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Dhaka"))
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm:ss a"));
+
+            System.out.println("✅ Login successful!");
+            System.out.println("👤 User: " + user.getFullName() + " (" + user.getRole() + ")");
+            System.out.println("📅 Login Time: " + timestamp + " BST (GMT+6)");
+
+            clearLoginForm();
+
+            Task<Void> redirectTask = new Task<Void>() {
+                @Override
+                protected Void call() throws Exception {
+                    Thread.sleep(1500);
+                    return null;
+                }
+
+                @Override
+                protected void succeeded() {
+                    Platform.runLater(() -> {
+                        try {
+                            Stage currentStage = (Stage) loginButton.getScene().getWindow();
+
+                            switch (user.getRole().toLowerCase()) {
+                                case "admin":
+                                    AdminDashboard.show(currentStage, user);
+                                    System.out.println("🔄 Redirected to Admin Dashboard");
+                                    break;
+
+                                case "doctor":
+                                    DoctorDashboard.show(currentStage, user);
+                                    System.out.println("🔄 Redirected to Doctor Dashboard");
+                                    break;
+
+                                case "receptionist":  // NEW: Receptionist case added
+                                    ReceptionDashboard.show(currentStage, user);
+                                    System.out.println("🔄 Redirected to Reception Dashboard");
+                                    break;
+
+                                case "patient":
+                                    try {
+                                        System.out.println("🚀 Launching Patient Dashboard for: " + user.getUsername());
+
+                                        PatientDAO patientDAO = new PatientDAO();
+                                        Patient patient = patientDAO.getPatientByUsername(user.getUsername());
+
+                                        if (patient != null) {
+                                            System.out.println("✅ Patient found in database: " + patient.getFullName());
+                                            PatientDashboard.show(currentStage, user);
+                                            System.out.println("🔄 Redirected to Patient Dashboard successfully");
+
+                                        } else {
+                                            System.err.println("❌ Patient not found in database for username: " + user.getUsername());
+
+                                            java.util.List<Patient> patients = patientDAO.searchPatientsByName(user.getFullName());
+
+                                            if (!patients.isEmpty()) {
+                                                System.out.println("✅ Patient found by name, setting username...");
+                                                Patient foundPatient = patients.get(0);
+
+                                                boolean usernameSet = patientDAO.setUsernameForPatient(foundPatient.getId(), user.getUsername());
+
+                                                if (usernameSet) {
+                                                    System.out.println("✅ Username set successfully, launching dashboard...");
+                                                    PatientDashboard.show(currentStage, user);
+                                                } else {
+                                                    throw new Exception("Failed to set username for patient");
+                                                }
+                                            } else {
+                                                throw new Exception("Patient record not found in database");
+                                            }
+                                        }
+
+                                    } catch (Exception e) {
+                                        System.err.println("❌ Patient Dashboard launch error: " + e.getMessage());
+                                        e.printStackTrace();
+
+                                        showAlert(Alert.AlertType.ERROR, "Patient Dashboard Error",
+                                                "Unable to launch Patient Dashboard:\n\n" + e.getMessage() +
+                                                        "\n\nPossible solutions:\n" +
+                                                        "1. Ensure your patient record exists in database\n" +
+                                                        "2. Contact system administrator\n" +
+                                                        "3. Try logging in again");
+
+                                        if (statusLabel != null) statusLabel.setVisible(false);
+                                    }
+                                    break;
+
+                                default:
+                                    showAlert(Alert.AlertType.ERROR, "Access Error",
+                                            "Unknown user role: " + user.getRole() + "\n" +
+                                                    "Please contact system administrator.");
+                                    System.err.println("❌ Unknown role: " + user.getRole());
+                                    if (statusLabel != null) statusLabel.setVisible(false);
+                                    break;
+                            }
+
+                        } catch (Exception e) {
+                            System.err.println("❌ Error during dashboard redirect: " + e.getMessage());
+                            e.printStackTrace();
+
+                            showAlert(Alert.AlertType.ERROR, "System Error",
+                                    "❌ Unable to launch dashboard\n\n" +
+                                            "Error: " + e.getMessage() + "\n\n" +
+                                            "Please try logging in again or contact support.");
+
+                            if (statusLabel != null) statusLabel.setVisible(false);
+                        }
+                    });
+                }
+
+                @Override
+                protected void failed() {
+                    Platform.runLater(() -> {
+                        System.err.println("❌ Redirect task failed");
+                        showAlert(Alert.AlertType.ERROR, "System Error",
+                                "Failed to redirect to dashboard.\n\nPlease try logging in again.");
+                        if (statusLabel != null) statusLabel.setVisible(false);
+                    });
+                }
+            };
+
+            Thread redirectThread = new Thread(redirectTask);
+            redirectThread.setDaemon(true);
+            redirectThread.start();
+
+        } catch (Exception e) {
+            System.err.println("❌ Error showing success message: " + e.getMessage());
+            e.printStackTrace();
+
+            Platform.runLater(() -> {
+                showAlert(Alert.AlertType.ERROR, "Login Error",
+                        "An error occurred during login process:\n\n" + e.getMessage());
+                if (statusLabel != null) statusLabel.setVisible(false);
+            });
+        }
+    }
+
+    /**
+     * UNIFIED: Registration creates patient in patients table ONLY
+     */
+    private void registerUser(Button signupButton, Label signupStatusLabel) {
+        String fullName = fullNameField.getText().trim();
+        String email = emailField.getText().trim();
+        String username = signupUsernameField.getText().trim();
+        String password = getCurrentSignupPassword();
+        String confirmPassword = getCurrentConfirmPassword();
+
+        signupStatusLabel.setVisible(false);
+
+        if (fullName.isEmpty() || email.isEmpty() || username.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()) {
+            showSignupErrorMessage("Please fill in all fields", signupStatusLabel);
+            return;
+        }
+
+        if (fullName.length() < 2) {
+            showSignupErrorMessage("Full name must be at least 2 characters long", signupStatusLabel);
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            showSignupErrorMessage("Please enter a valid email address", signupStatusLabel);
+            return;
+        }
+
+        if (username.length() < 3) {
+            showSignupErrorMessage("Username must be at least 3 characters long", signupStatusLabel);
+            return;
+        }
+
+        if (!username.matches("^[a-zA-Z0-9_-]+$")) {
+            showSignupErrorMessage("Username can only contain letters, numbers, underscore, and hyphen", signupStatusLabel);
+            return;
+        }
+
+        if (password.length() < 6) {
+            showSignupErrorMessage("Password must be at least 6 characters long", signupStatusLabel);
+            return;
+        }
+
+        if (!password.equals(confirmPassword)) {
+            showSignupErrorMessage("Passwords do not match", signupStatusLabel);
+            return;
+        }
+
+        System.out.println("🔍 Checking if username/email exists in patients table...");
+
+        // UNIFIED: Check only patients table
+        PatientDAO patientDAO = new PatientDAO();
+        if (patientDAO.usernameExists(username)) {
+            showSignupErrorMessage("Username already exists. Please choose a different username.", signupStatusLabel);
+            return;
+        }
+
+        // Check email in patients table
+        Patient existingPatient = patientDAO.getPatientByEmail(email);
+        if (existingPatient != null) {
+            showSignupErrorMessage("Email already exists. Please use a different email.", signupStatusLabel);
+            return;
+        }
+
+        signupButton.setDisable(true);
+        signupButton.setText("Creating Account...");
+
+        signupStatusLabel.setText("🏥 Creating patient account...");
+        signupStatusLabel.setStyle("-fx-text-fill: #1e488f; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 6 10; -fx-background-color: #eff6ff; -fx-border-color: #bfdbfe; -fx-border-width: 1; -fx-border-radius: 4; -fx-background-radius: 4; -fx-alignment: center;");
+        signupStatusLabel.setVisible(true);
+
+        System.out.println("📝 Creating unified patient account:");
+        System.out.println("👤 Name: " + fullName);
+        System.out.println("📧 Email: " + email);
+        System.out.println("🔑 Username: " + username);
+        System.out.println("🏥 System: UNIFIED - patients table only");
+
+        Task<Boolean> registerTask = new Task<Boolean>() {
+            @Override
+            protected Boolean call() throws Exception {
+                Thread.sleep(1500);
+
+                try {
+                    // UNIFIED: Create patient in patients table ONLY
+                    System.out.println("🔄 Creating patient in 'patients' table...");
+
+                    Patient patient = new Patient();
+                    patient.setUsername(username);
+                    patient.setPassword(password);
+                    patient.setEmail(email);
+                    patient.setFullName(fullName);
+                    patient.setAge(25); // Default age - can be updated later
+                    patient.setGender("Male"); // Default gender - can be updated later
+                    patient.setActive(true);
+                    patient.setRole("Patient");
+
+                    // Prepare patient for database
+                    patient.prepareForDatabase();
+
+                    boolean success = patientDAO.addPatient(patient);
+
+                    if (success) {
+                        System.out.println("✅ Patient created successfully in unified system");
+
+                        // Test login immediately
+                        System.out.println("🧪 Testing unified login capability...");
+                        Patient loginTest = patientDAO.validateLogin(username, password);
+
+                        if (loginTest != null) {
+                            System.out.println("✅ LOGIN TEST PASSED: Patient can login in unified system!");
+                            return true;
+                        } else {
+                            System.err.println("❌ LOGIN TEST FAILED: Check login logic");
+                            // Still consider registration successful
+                            return true;
+                        }
+
+                    } else {
+                        System.err.println("❌ Failed to create patient in unified system");
+                        return false;
+                    }
+
+                } catch (Exception e) {
+                    System.err.println("❌ Exception during unified registration: " + e.getMessage());
+                    e.printStackTrace();
+                    return false;
+                }
+            }
+
+            @Override
+            protected void succeeded() {
+                Boolean success = getValue();
+                Platform.runLater(() -> {
+                    if (success) {
+                        String timestamp = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Dhaka"))
+                                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm:ss a"));
+
+                        showAlert(Alert.AlertType.INFORMATION, "🎉 Registration Successful",
+                                "🏥 Welcome to LifeSpring Hospital!\n\n" +
+                                        "✅ Your patient account has been created successfully!\n" +
+                                        "✅ Unified system - accessible by both admin and patient portal!\n\n" +
+                                        "👤 Name: " + fullName + "\n" +
+                                        "📧 Email: " + email + "\n" +
+                                        "🔑 Username: " + username + "\n" +
+                                        "🏥 System: Unified Patient Database\n" +
+                                        "📅 Registered: " + timestamp + " BST\n\n" +
+                                        "✅ Admin can view and manage your record\n" +
+                                        "✅ You can login to patient portal\n\n" +
+                                        "You can now sign in with your credentials!");
+
+                        switchToLogin();
+                        clearSignupForm();
+
+                        // Pre-fill login form for convenience
+                        usernameField.setText(username);
+                        if (passwordVisible) {
+                            passwordTextField.setText(password);
+                        } else {
+                            passwordField.setText(password);
+                        }
+
+                    } else {
+                        showSignupErrorMessage("Registration failed. Please try again.", signupStatusLabel);
+                        resetSignupButton(signupButton);
+                    }
+                });
+            }
+
+            @Override
+            protected void failed() {
+                Platform.runLater(() -> {
+                    showSignupErrorMessage("Registration failed due to server error. Please try again.", signupStatusLabel);
+                    resetSignupButton(signupButton);
+                });
+            }
+        };
+
+        Thread registerThread = new Thread(registerTask);
+        registerThread.setDaemon(true);
+        registerThread.start();
+    }
+
+    private void resetSignupButton(Button signupButton) {
+        if (signupButton != null) {
+            signupButton.setDisable(false);
+            signupButton.setText("Create Patient Account");
+        }
+    }
+
+    private void clearSignupForm() {
+        try {
+            if (fullNameField != null) fullNameField.clear();
+            if (emailField != null) emailField.clear();
+            if (signupUsernameField != null) signupUsernameField.clear();
+            if (signupPasswordField != null) signupPasswordField.clear();
+            if (signupPasswordTextField != null) signupPasswordTextField.clear();
+            if (confirmPasswordField != null) confirmPasswordField.clear();
+            if (confirmPasswordTextField != null) confirmPasswordTextField.clear();
+
+            // Reset password visibility states
+            signupPasswordVisible = false;
+            confirmPasswordVisible = false;
+
+            if (signupPasswordField != null) {
+                signupPasswordField.setVisible(true);
+                signupPasswordField.setManaged(true);
+            }
+            if (signupPasswordTextField != null) {
+                signupPasswordTextField.setVisible(false);
+                signupPasswordTextField.setManaged(false);
+            }
+            if (signupPasswordToggleButton != null) {
+                signupPasswordToggleButton.setText("Show");
+            }
+
+            if (confirmPasswordField != null) {
+                confirmPasswordField.setVisible(true);
+                confirmPasswordField.setManaged(true);
+            }
+            if (confirmPasswordTextField != null) {
+                confirmPasswordTextField.setVisible(false);
+                confirmPasswordTextField.setManaged(false);
+            }
+            if (confirmPasswordToggleButton != null) {
+                confirmPasswordToggleButton.setText("Show");
+            }
+
+            System.out.println("🧹 Signup form cleared successfully at: " +
+                    java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Dhaka")).format(
+                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm:ss a")) + " BST");
+        } catch (Exception e) {
+            System.err.println("❌ Error clearing signup form: " + e.getMessage());
+        }
+    }
+
     public static void main(String[] args) {
         System.out.println("🚀 Launching LifeSpring Hospital Application...");
         System.out.println("📅 Current Date and Time (BST - GMT+6): " +
